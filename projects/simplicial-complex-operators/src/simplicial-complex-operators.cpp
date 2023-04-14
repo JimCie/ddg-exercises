@@ -137,7 +137,7 @@ Vector<size_t> SimplicialComplexOperators::buildEdgeVector(const MeshSubset& sub
  */
 Vector<size_t> SimplicialComplexOperators::buildFaceVector(const MeshSubset& subset) const {
 
-    // TODO
+    // TODO : DONE
     Vector<size_t> vec = Vector<size_t>::Zero(mesh->nFaces());
     for(auto index : subset.faces){
         vec[index] = 1;
@@ -154,7 +154,7 @@ Vector<size_t> SimplicialComplexOperators::buildFaceVector(const MeshSubset& sub
  */
 MeshSubset SimplicialComplexOperators::star(const MeshSubset& subset) const {
 
-    // TODO
+    // TODO : DONE
     MeshSubset other{};
     /*The result of the multiplication of the adjacency matrices A1*AO
      * is a matrix contains the contribution of the vertex to a face counted twice (one for each edge).
@@ -234,7 +234,8 @@ MeshSubset SimplicialComplexOperators::link(const MeshSubset& subset) const {
 bool SimplicialComplexOperators::isComplex(const MeshSubset& subset) const {
 
     // TODO
-    return false; // placeholder
+    MeshSubset cl = closure(subset);
+    return cl.equals(subset); // placeholder
 }
 
 /*
@@ -247,7 +248,47 @@ bool SimplicialComplexOperators::isComplex(const MeshSubset& subset) const {
 int SimplicialComplexOperators::isPureComplex(const MeshSubset& subset) const {
 
     // TODO
-    return -1; // placeholder
+    MeshSubset intermediateMesh{};
+    int degree = -1;
+    if(!isComplex(subset))
+        return -1;
+    if(!subset.vertices.empty())
+        degree = 0; //this will change if there are simplices other than vertices
+    else
+        return -1;
+
+    if(!subset.edges.empty()){
+        degree = 1;
+        //check if all vertices are within an edge
+        //this will ensure from previous point that they are within a face if any
+        for(size_t indexEdge : subset.edges){
+            for(Vertex v : mesh->edge(indexEdge).adjacentVertices()){
+                intermediateMesh.addVertex(v.getIndex());
+            }
+        }
+    }else{
+        //it only has vertices thus it is pure of degree 0
+        return degree;
+    }
+
+    if(!subset.faces.empty())
+    {
+        degree = 2;
+        //check if all edges are within a face
+        //populate a set with the edges of the faces and compare later
+        for(size_t indexFace : subset.faces){
+            for(Edge e : mesh->face(indexFace).adjacentEdges()){
+                intermediateMesh.addEdge(e.getIndex());
+            }
+        }
+    }else{
+        if(intermediateMesh.vertices == subset.vertices)
+            return degree;
+    }
+
+    if(intermediateMesh.edges == subset.edges and intermediateMesh.vertices == subset.vertices)
+        return degree;
+    return -1; // if all previous tests have failed, which should not happen
 }
 
 /*
@@ -258,6 +299,35 @@ int SimplicialComplexOperators::isPureComplex(const MeshSubset& subset) const {
  */
 MeshSubset SimplicialComplexOperators::boundary(const MeshSubset& subset) const {
 
-    // TODO
-    return subset; // placeholder
+    // TODO : DONE
+    MeshSubset preBoundary;
+    size_t contained_in = 0;
+    /*if a vertex occurs in only one edge, it is a boundary*/
+    /*we check if there are many of the adjacent edges in the subset*/
+    for(auto indexVertex : subset.vertices){
+        for(Edge e : mesh->vertex(indexVertex).adjacentEdges()){
+            if(subset.edges.count(e.getIndex())){
+                contained_in++;
+            }
+        }
+        if(contained_in == 1){
+            preBoundary.addVertex(indexVertex);
+        }
+        contained_in = 0;
+    }
+
+    /*if an edge occurs in only one face, it is a boundary*/
+    for(auto indexEdge : subset.edges){
+        for(Face f : mesh->edge(indexEdge).adjacentFaces()){
+            if(subset.faces.count(f.getIndex())){
+                contained_in++;
+            }
+        }
+        if(contained_in == 1){
+            preBoundary.addEdge(indexEdge);
+        }
+        contained_in = 0;
+    }
+
+    return closure(preBoundary); // placeholder
 }
