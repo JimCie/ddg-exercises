@@ -42,8 +42,24 @@ namespace surface {
  */
 SparseMatrix<double> VertexPositionGeometry::buildHodgeStar0Form() const {
 
-    // TODO
-    return identityMatrix<double>(1); // placeholder
+    SparseMatrix<double> star0(mesh.nVertices(), mesh.nVertices());
+    typedef Eigen::Triplet<double> T;
+    std::vector<T> tripletList;
+    tripletList.reserve(mesh.nVertices());
+    /* //just for fun
+    for(size_t index = 0; index<mesh.nVertices(); index++){
+        Vertex v = mesh.vertex(index);
+        double area = VertexPositionGeometry::barycentricDualArea(v); // no need to divide by the measure of the vertex, we take it to 1
+        tripletList.push_back(T(index, index, area));
+    }*/
+
+    for(Vertex v : mesh.vertices()){ //other possible traversal
+        double area = VertexPositionGeometry::barycentricDualArea(v); // no need to divide by the measure of the vertex, we take it to 1
+        tripletList.push_back(T(v.getIndex(), v.getIndex(), area));
+    }
+
+    star0.setFromTriplets(tripletList.begin(),  tripletList.end());
+    return star0;
 }
 
 /*
@@ -54,9 +70,46 @@ SparseMatrix<double> VertexPositionGeometry::buildHodgeStar0Form() const {
  */
 SparseMatrix<double> VertexPositionGeometry::buildHodgeStar1Form() const {
 
-    // TODO
-    return identityMatrix<double>(1); // placeholder
+    typedef Eigen::Triplet<double> T;
+    std::vector<T> triplets;
+
+    for(auto e : mesh.edges()){
+
+        double cot1 = VertexPositionGeometry::cotan(e.halfedge());
+        double cot2 = VertexPositionGeometry::cotan(e.halfedge().twin());
+
+        double value = (cot1 + cot2) / 2;
+        triplets.push_back(T(e.getIndex(), e.getIndex(), value ));
+    }
+
+    Eigen::SparseMatrix<double> sparseMatrix(mesh.nEdges(), mesh.nEdges());
+    sparseMatrix.setFromTriplets(triplets.begin(), triplets.end());
+
+    return sparseMatrix;
 }
+/*SparseMatrix<double> VertexPositionGeometry::buildHodgeStar1Form() const {
+
+    SparseMatrix<double> star1(mesh.nEdges(), mesh.nEdges());
+    typedef Eigen::Triplet<double> T;
+    std::vector<T> tripletList;
+    tripletList.reserve(mesh.nEdges());
+
+    for(Edge e : mesh.edges()){
+        double value;
+        if(e.isBoundary()){
+            value = VertexPositionGeometry::cotan(e.halfedge());
+        }else{
+            value = VertexPositionGeometry::cotan(e.halfedge()) + VertexPositionGeometry::cotan(e.halfedge().twin());
+        }
+
+        value *= 0.5;
+        value/= edgeLength(e);
+        tripletList.push_back(T(e.getIndex(), e.getIndex(), value));
+    }
+
+    star1.setFromTriplets(tripletList.begin(), tripletList.end());
+    return star1;
+}*/
 
 /*
  * Build Hodge operator on 2-forms.
