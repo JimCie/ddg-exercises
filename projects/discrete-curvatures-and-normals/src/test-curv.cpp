@@ -144,6 +144,9 @@ class DiscreteCurvaturesAndNormalsTest : public ::testing::Test {
             fMat(i, 2) = f[i][2] - 1;
         }
         std::tie(this->mesh, this->geometry) = makeManifoldSurfaceMeshAndGeometry(vMat, fMat);
+        geometry->requireVertexPositions();//added
+        geometry->requireFaceNormals();//added
+        geometry->requireFaceAreas();//added
     }
 
     virtual ~DiscreteCurvaturesAndNormalsTest() {}

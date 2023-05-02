@@ -124,7 +124,7 @@ double VertexPositionGeometry::angle(Corner c) const {
 
     auto v1 = c.vertex().getIndex();
     auto v2 = c.halfedge().tipVertex().getIndex();
-    auto v3 = c.halfedge().twin().next().tipVertex().getIndex();
+    auto v3 = c.halfedge().next().tipVertex().getIndex();
 
     const auto u = vertexPositions[v2] - vertexPositions[v1];
     const auto v = vertexPositions[v3] - vertexPositions[v1];
@@ -142,9 +142,30 @@ double VertexPositionGeometry::angle(Corner c) const {
  * Returns: The dihedral angle.
  */
 double VertexPositionGeometry::dihedralAngle(Halfedge he) const {
+    auto n1 = faceNormals[he.face().getIndex()];//must add geometry->requireFaceNormals();
+    auto n2 = faceNormals[he.twin().face().getIndex()];
 
-    // TODO
-    return 0; // placeholder
+    auto E = vertexPositions[he.tipVertex().getIndex()] - vertexPositions[he.tailVertex().getIndex()];
+    auto e = E.normalize();
+
+    auto c = cross(n1,n2);
+    auto d = dot(n1,n2);
+
+    return atan2(dot(e, c), dot(n1,n2));
+/*    Halfedge heNext = he.next(); //CA face 1 : ABC
+    Halfedge heTwinNext = he.twin().next(); //BD face 2 : BCD
+
+    const auto BC = vertexPositions[he.tipVertex().getIndex()] - vertexPositions[he.tailVertex().getIndex()];
+    const auto CB = -1 * BC;
+    const auto CA = vertexPositions[heNext.tipVertex().getIndex()] - vertexPositions[heNext.tailVertex().getIndex()];
+    const auto BD = vertexPositions[heTwinNext.tipVertex().getIndex()] - vertexPositions[heTwinNext.tailVertex().getIndex()];
+
+    const auto normal1 = cross(CA, CB).normalize();
+    const auto normal2 = cross(BD, BC).normalize();
+
+    const auto edge = BC.normalize();
+
+    return atan2(dot(edge,cross(normal1, normal2)), dot(normal1, normal2)); // placeholder*/
 }
 
 /*
@@ -155,8 +176,11 @@ double VertexPositionGeometry::dihedralAngle(Halfedge he) const {
  */
 Vector3 VertexPositionGeometry::vertexNormalEquallyWeighted(Vertex v) const {
 
-    // TODO
-    return {0, 0, 0}; // placeholder
+    auto normal = Vector3::zero();
+    for(const auto & f : v.adjacentFaces()){
+        normal += faceNormals[f.getIndex()];
+    }
+    return normal.normalize(); // placeholder
 }
 
 /*
@@ -167,8 +191,11 @@ Vector3 VertexPositionGeometry::vertexNormalEquallyWeighted(Vertex v) const {
  */
 Vector3 VertexPositionGeometry::vertexNormalAngleWeighted(Vertex v) const {
 
-    // TODO
-    return {0, 0, 0}; // placeholder
+    auto normal = Vector3::zero();
+    for(auto c : v.adjacentCorners()){
+        normal += angle(c) * faceNormals[c.face().getIndex()];
+    }
+    return normal.normalize(); // placeholder
 }
 
 /*
@@ -179,8 +206,21 @@ Vector3 VertexPositionGeometry::vertexNormalAngleWeighted(Vertex v) const {
  */
 Vector3 VertexPositionGeometry::vertexNormalSphereInscribed(Vertex v) const {
 
-    // TODO
-    return {0, 0, 0}; // placeholder
+    auto normal = Vector3::zero();
+    auto he1 = v.halfedge();
+    auto he2 = he1.twin().next();
+
+    //Vertex is A, we compute the angle for triangles ABC
+    while(1){
+        Vector3 AB = vertexPositions[he1.tipVertex().getIndex()] - vertexPositions[he1.tailVertex().getIndex()];
+        Vector3 AC = vertexPositions[he2.tipVertex().getIndex()] - vertexPositions[he2.tailVertex().getIndex()];
+        normal += cross(AC, AB) / (norm2(AB) * norm2(AC));
+        he1 = he2;
+        he2 = he1.twin().next();
+        if(he1 == v.halfedge())
+            break;
+    }
+    return normal.normalize(); // placeholder
 }
 
 /*
@@ -191,8 +231,12 @@ Vector3 VertexPositionGeometry::vertexNormalSphereInscribed(Vertex v) const {
  */
 Vector3 VertexPositionGeometry::vertexNormalAreaWeighted(Vertex v) const {
 
-    // TODO
-    return {0, 0, 0}; // placeholder
+    auto normal = Vector3::zero();
+    for(auto f : v.adjacentFaces()){
+        normal += faceNormals[f.getIndex()]*faceAreas[f.getIndex()]; // requireFaceAreas();
+        //normal += faceNormal(f) * faceArea(f);
+    }
+    return normal.normalize(); // placeholder
 }
 
 /*
@@ -203,8 +247,13 @@ Vector3 VertexPositionGeometry::vertexNormalAreaWeighted(Vertex v) const {
  */
 Vector3 VertexPositionGeometry::vertexNormalGaussianCurvature(Vertex v) const {
 
-    // TODO
-    return {0, 0, 0}; // placeholder
+    auto normal = Vector3::zero();
+
+    for(auto he : v.outgoingHalfedges()){
+        const auto posVec = (vertexPositions[he.tipVertex().getIndex()] - vertexPositions[he.tailVertex().getIndex()]).normalize();
+        normal += dihedralAngle(he) * posVec;
+    }
+    return normal.normalize();
 }
 
 /*
@@ -215,8 +264,12 @@ Vector3 VertexPositionGeometry::vertexNormalGaussianCurvature(Vertex v) const {
  */
 Vector3 VertexPositionGeometry::vertexNormalMeanCurvature(Vertex v) const {
 
-    // TODO
-    return {0, 0, 0}; // placeholder
+    auto normal = Vector3::zero();
+    for(auto he : v.outgoingHalfedges()){
+        const auto posVec = vertexPositions[he.tipVertex().getIndex()] - vertexPositions[he.tailVertex().getIndex()];
+        normal += (cotan(he) + cotan(he.twin())) * posVec;
+    }
+    return normal.normalize();
 }
 
 /*
@@ -227,8 +280,13 @@ Vector3 VertexPositionGeometry::vertexNormalMeanCurvature(Vertex v) const {
  */
 double VertexPositionGeometry::angleDefect(Vertex v) const {
 
-    // TODO
-    return 0; // placeholder
+    double totalInnerAngle = 0.0;
+
+    for(const auto& c : v.adjacentCorners()){
+        totalInnerAngle += angle(c);
+    }
+
+    return 2*PI - totalInnerAngle;
 }
 
 /*
@@ -239,8 +297,12 @@ double VertexPositionGeometry::angleDefect(Vertex v) const {
  */
 double VertexPositionGeometry::totalAngleDefect() const {
 
-    // TODO
-    return 0; // placeholder
+    double total = 0.0;
+
+    for(const auto& v : mesh.vertices()){
+        total += angleDefect(v);
+    }
+    return total;
 }
 
 /*
@@ -251,8 +313,11 @@ double VertexPositionGeometry::totalAngleDefect() const {
  */
 double VertexPositionGeometry::scalarMeanCurvature(Vertex v) const {
 
-    // TODO
-    return 0; // placeholder
+    double meanCurvature = 0.;
+    for(auto he : v.outgoingHalfedges()){
+        meanCurvature += dihedralAngle(he) * norm(vertexPositions[he.tipVertex().getIndex()]- vertexPositions[he.tailVertex().getIndex()]);
+    }
+    return meanCurvature * 0.5; // placeholder
 }
 
 /*
@@ -263,8 +328,13 @@ double VertexPositionGeometry::scalarMeanCurvature(Vertex v) const {
  */
 double VertexPositionGeometry::circumcentricDualArea(Vertex v) const {
 
-    // TODO
-    return 0; // placeholder
+    double area = 0.;
+    for(auto he : v.outgoingHalfedges()){
+        area += norm2(vertexPositions[he.tipVertex().getIndex()]- vertexPositions[he.tailVertex().getIndex()]) * cotan(he);
+        he = he.next().next();
+        area += norm2(vertexPositions[he.tipVertex().getIndex()]- vertexPositions[he.tailVertex().getIndex()]) * cotan(he);
+    }
+    return area * 0.125; // placeholder
 }
 
 /*
