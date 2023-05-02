@@ -119,8 +119,17 @@ SparseMatrix<double> VertexPositionGeometry::buildHodgeStar1Form() const {
  */
 SparseMatrix<double> VertexPositionGeometry::buildHodgeStar2Form() const {
 
-    // TODO
-    return identityMatrix<double>(1); // placeholder
+    SparseMatrix<double> star2(mesh.nFaces(), mesh.nFaces());
+    typedef Eigen::Triplet<double> T;
+    std::vector<T> tripletList;
+    tripletList.reserve(mesh.nFaces());
+
+    for(auto f: mesh.faces()){ // f Face
+        tripletList.push_back(T(f.getIndex(), f.getIndex(), double(1./faceArea(f))));
+    }
+
+    star2.setFromTriplets(tripletList.begin(), tripletList.end());
+    return star2;
 }
 
 /*
@@ -131,8 +140,18 @@ SparseMatrix<double> VertexPositionGeometry::buildHodgeStar2Form() const {
  */
 SparseMatrix<double> VertexPositionGeometry::buildExteriorDerivative0Form() const {
 
-    // TODO
-    return identityMatrix<double>(1); // placeholder
+    SparseMatrix<double> d0(mesh.nEdges(), mesh.nVertices());
+    typedef Eigen::Triplet<double> T;
+    std::vector<T> tripletList;
+    tripletList.reserve(mesh.nEdges()*2);
+    for(auto e : mesh.edges()){
+        auto tail = e.firstVertex().getIndex();
+        auto tip = e.secondVertex().getIndex();
+        tripletList.push_back(T(e.getIndex(), tip, 1));
+        tripletList.push_back(T(e.getIndex() , tail, -1));
+    }
+    d0.setFromTriplets(tripletList.begin(), tripletList.end());
+    return d0;
 }
 
 /*
@@ -143,8 +162,18 @@ SparseMatrix<double> VertexPositionGeometry::buildExteriorDerivative0Form() cons
  */
 SparseMatrix<double> VertexPositionGeometry::buildExteriorDerivative1Form() const {
 
-    // TODO
-    return identityMatrix<double>(1); // placeholder
+    SparseMatrix<double> d1(mesh.nFaces(), mesh.nEdges());
+    typedef Eigen::Triplet<double> T;
+    std::vector<T> tripletList;
+    tripletList.reserve(3*mesh.nFaces());
+    for(auto f : mesh.faces()){
+        for(auto he : f.adjacentHalfedges()){
+            double orientation = he.orientation() ? 1 : -1;
+            tripletList.push_back(T(f.getIndex(), he.edge().getIndex(), orientation));
+        }
+    }
+    d1.setFromTriplets(tripletList.begin(), tripletList.end());
+    return d1;
 }
 
 } // namespace surface
